@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -44,6 +45,12 @@ export default function SignupPage() {
         <button className="bg-green-600 text-white py-2 rounded hover:bg-green-700 transition" type="submit">
           Sign Up
         </button>
+        <p className="text-sm text-center mt-4">
+          Don&apos;t have an account?{' '}
+          <Link href="/auth/login" className="text-blue-600 hover:underline">
+            Login
+          </Link>
+        </p>
       </form>
     </main>
   );

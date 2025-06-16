@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { useCategory } from '@/context/CategoryContext';
 
-type ExpenseData = {
+type DataItem = {
   amount: number;
   created_at: string;
   category: string;
@@ -14,92 +14,104 @@ type ExpenseData = {
 
 type ChartData = {
   period: string;
-  total: number;
+  Income: number;
+  Expense: number;
 };
 
 export default function ExpenseChart() {
   const [data, setData] = useState<ChartData[]>([]);
   const [view, setView] = useState<'monthly' | 'weekly'>('monthly');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const { category } = useCategory();
   const supabase = createClientComponentClient();
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data, error } = await supabase
+      const { data: expenses, error: expenseError } = await supabase
         .from('expenses')
         .select('amount, created_at, category');
 
-      if (error) {
-        console.error('Error fetching expenses:', error);
+      const { data: incomes, error: incomeError } = await supabase
+        .from('incomes')
+        .select('amount, created_at, category');
+
+      if (expenseError || incomeError) {
+        console.error('Error fetching data:', expenseError || incomeError);
         return;
       }
 
-      const filteredData = categoryFilter === 'all'
-        ? data
-        : data!.filter((expense: ExpenseData) => expense.category === categoryFilter);
+      const filterData = (data: DataItem[]) => {
+        return category === 'all'
+          ? data
+          : data.filter((item) => item.category === category);
+      };
 
-      const summary: Record<string, number> = {};
+      const filteredExpenses = filterData(expenses!);
+      const filteredIncomes = filterData(incomes!);
 
-      filteredData!.forEach((expense: ExpenseData) => {
+      const summary: Record<string, { Income: number; Expense: number }> = {};
+
+      // Summarize Expenses
+      filteredExpenses.forEach((expense) => {
         const date = new Date(expense.created_at);
-
         let key: string;
         if (view === 'monthly') {
-          key = date.toLocaleString('default', { month: 'short', year: 'numeric' }); // e.g., "Jun 2025"
+          key = date.toLocaleString('default', { month: 'short', year: 'numeric' });
         } else {
-          // Weekly - get year & week number
           const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
           const weekNumber = Math.ceil((((+date - +firstDayOfYear) / 86400000) + firstDayOfYear.getDay() + 1) / 7);
           key = `Week ${weekNumber} - ${date.getFullYear()}`;
         }
+        if (!summary[key]) summary[key] = { Income: 0, Expense: 0 };
+        summary[key].Expense += expense.amount;
+      });
 
-        summary[key] = (summary[key] || 0) + expense.amount;
+      // Summarize Incomes
+      filteredIncomes.forEach((income) => {
+        const date = new Date(income.created_at);
+        let key: string;
+        if (view === 'monthly') {
+          key = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+        } else {
+          const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+          const weekNumber = Math.ceil((((+date - +firstDayOfYear) / 86400000) + firstDayOfYear.getDay() + 1) / 7);
+          key = `Week ${weekNumber} - ${date.getFullYear()}`;
+        }
+        if (!summary[key]) summary[key] = { Income: 0, Expense: 0 };
+        summary[key].Income += income.amount;
       });
 
       const chartData: ChartData[] = Object.keys(summary).map((period) => ({
         period,
-        total: summary[period],
+        Income: summary[period].Income,
+        Expense: summary[period].Expense,
       })).sort((a, b) => a.period.localeCompare(b.period));
 
-      setData(chartData);
+      setData(chartData.length === 0 ? [{ period: 'No Data', Income: 0, Expense: 0 }] : chartData);
     };
 
     fetchData();
-  }, [view, categoryFilter]);
+  }, [view, category]);
 
   return (
     <div className="space-y-4">
       {/* Toggle for Monthly / Weekly */}
-      <ToggleGroup type="single" value={view} onValueChange={(value) => setView(value as 'monthly' | 'weekly')}>
-        <ToggleGroupItem value="monthly">Monthly</ToggleGroupItem>
-        <ToggleGroupItem value="weekly">Weekly</ToggleGroupItem>
-      </ToggleGroup>
-
-      {/* Category Filter */}
-      <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value)}>
-        <SelectTrigger className="w-[200px]">
-          <SelectValue placeholder="Filter by Category" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All</SelectItem>
-          <SelectItem value="Food">Food</SelectItem>
-          <SelectItem value="Transport">Transport</SelectItem>
-          <SelectItem value="Entertainment">Entertainment</SelectItem>
-        </SelectContent>
-      </Select>
+      <div className="flex justify-end">
+        <ToggleGroup type="single" value={view} onValueChange={(value) => setView(value as 'monthly' | 'weekly')}>
+          <ToggleGroupItem value="monthly">Monthly</ToggleGroupItem>
+          <ToggleGroupItem value="weekly">Weekly</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
 
       {/* Bar Chart */}
       <div className="w-full h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
-            <XAxis dataKey="period" tick={{ fill: '#4B5563', fontSize: 12 }} />
-            <YAxis tick={{ fill: '#4B5563', fontSize: 12 }} />
-            <Tooltip
-              contentStyle={{ backgroundColor: '#1F2937', borderRadius: '8px', color: 'white' }}
-              itemStyle={{ color: 'white' }}
-            />
+            <XAxis dataKey="period" />
+            <YAxis />
+            <Tooltip />
             <Legend />
-            <Bar dataKey="total" fill="#6366F1" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Income" fill="#22c55e" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Expense" fill="#ef4444" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
