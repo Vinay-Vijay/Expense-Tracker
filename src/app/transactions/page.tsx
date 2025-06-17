@@ -25,7 +25,7 @@ export default function TransactionsPage() {
     const [filterType, setFilterType] = useState<'All' | 'Income' | 'Expense'>('All');
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+    const [, setEditingTransaction] = useState<Transaction | null>(null);
     const [editTitle, setEditTitle] = useState('');
     const [editAmount, setEditAmount] = useState(0);
     const [editCategory, setEditCategory] = useState('');
@@ -66,7 +66,7 @@ export default function TransactionsPage() {
             setTransactions(allTransactions);
         };
         fetchTransactions();
-    }, []);
+    }, [supabase]);
 
     useEffect(() => {
         const params = new URLSearchParams();
@@ -77,7 +77,7 @@ export default function TransactionsPage() {
         if (sortField !== 'created_at') params.set('sort', sortField);
         if (sortOrder !== 'desc') params.set('order', sortOrder);
         router.replace(`/transactions?${params.toString()}`);
-    }, [filterType, searchTerm, startDate, endDate, sortField, sortOrder]);
+    }, [filterType, searchTerm, startDate, endDate, sortField, sortOrder, router]);
 
     const handleDelete = async (tx: Transaction) => {
         const table = tx.type === 'Income' ? 'incomes' : 'expenses';

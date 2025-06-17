@@ -14,7 +14,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchUser = async () => {
-      const { data: { user }, error } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const name = user.user_metadata?.full_name || user.email || 'User';
         setUserName(name);

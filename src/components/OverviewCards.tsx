@@ -34,7 +34,7 @@ export default function OverviewCards() {
     };
 
     fetchData();
-  }, []);
+  }, [supabase]);
 
   const balance = incomeTotal - expenseTotal;
 

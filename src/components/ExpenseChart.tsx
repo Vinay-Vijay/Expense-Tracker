@@ -90,7 +90,7 @@ export default function ExpenseChart() {
     };
 
     fetchData();
-  }, [view, category]);
+  }, [view, category, supabase]);
 
   return (
     <div className="space-y-4">
