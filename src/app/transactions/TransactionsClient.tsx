@@ -56,15 +56,86 @@ export default function TransactionsPage() {
     }, [searchParams]);
 
     useEffect(() => {
+        // const fetchTransactions = async () => {
+        //     const {
+        //         data: { user },
+        //         error: userError,
+        //     } = await supabase.auth.getUser();
+
+        //     if (userError || !user) {
+        //         console.error('Error getting user:', userError);
+        //         return;
+        //     }
+
+        //     const userId = user.id;
+
+        //     const { data: expenses, error: expensesError } = await supabase
+        //         .from('expenses')
+        //         .select('*')
+        //         .eq('user_id', userId);
+
+        //     const { data: incomes, error: incomesError } = await supabase
+        //         .from('incomes')
+        //         .select('*')
+        //         .eq('user_id', userId);
+
+        //     if (expensesError || incomesError) {
+        //         console.error('Error fetching data:', expensesError || incomesError);
+        //         return;
+        //     }
+
+        //     const expenseTransactions = (expenses || []).map((exp) => ({ ...exp, type: 'Expense' }));
+        //     const incomeTransactions = (incomes || []).map((inc) => ({ ...inc, type: 'Income' }));
+        //     const allTransactions = [...expenseTransactions, ...incomeTransactions];
+        //     allTransactions.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+        //     setTransactions(allTransactions);
+        // };
         const fetchTransactions = async () => {
-            const { data: expenses } = await supabase.from('expenses').select('*');
-            const { data: incomes } = await supabase.from('incomes').select('*');
+            const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+            if (userError || !user) {
+                console.error('Error getting user:', userError);
+                return;
+            }
+
+            if (!user?.id) {
+                console.error('No user ID found');
+                return;
+            }
+
+            const userId = user.id;
+
+            // Fetch expenses specific to user
+            const { data: expenses, error: expensesError } = await supabase
+                .from('expenses')
+                .select('*')
+                .eq('user_id', userId);
+
+            // Fetch incomes specific to user
+            const { data: incomes, error: incomesError } = await supabase
+                .from('incomes')
+                .select('*')
+                .eq('user_id', userId);
+
+            if (expensesError || incomesError) {
+                console.error('Error fetching data:', expensesError || incomesError);
+                return;
+            }
+
             const expenseTransactions = (expenses || []).map((exp) => ({ ...exp, type: 'Expense' }));
             const incomeTransactions = (incomes || []).map((inc) => ({ ...inc, type: 'Income' }));
+
             const allTransactions = [...expenseTransactions, ...incomeTransactions];
-            allTransactions.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
+            // Sort by updated_at descending
+            allTransactions.sort(
+                (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+            );
+
             setTransactions(allTransactions);
         };
+
+
         fetchTransactions();
     }, [supabase]);
 

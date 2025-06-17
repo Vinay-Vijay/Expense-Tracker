@@ -24,18 +24,34 @@ export default function GreetingBar({ user }: { user: string | null }) {
   const [expenseCategory, setExpenseCategory] = useState('');
 
   const handleAddIncome = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+
     const { error } = await supabase.from('incomes').insert([
-      { title: incomeTitle, amount: parseFloat(incomeAmount), category: incomeCategory }
+      {
+        title: incomeTitle,
+        amount: parseFloat(incomeAmount),
+        category: incomeCategory,
+        user_id: user?.id
+      }
     ]);
+
     if (error) alert(error.message);
     else window.location.reload();
   };
 
 
   const handleAddExpense = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+
     const { error } = await supabase.from('expenses').insert([
-      { title: expenseTitle, amount: parseFloat(expenseAmount), category: expenseCategory }
+      {
+        title: expenseTitle,
+        amount: parseFloat(expenseAmount),
+        category: expenseCategory,
+        user_id: user?.id
+      }
     ]);
+
     if (error) alert(error.message);
     else window.location.reload();
   };
