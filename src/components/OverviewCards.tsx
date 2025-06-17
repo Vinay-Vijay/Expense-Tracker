@@ -12,24 +12,40 @@ export default function OverviewCards() {
 
   useEffect(() => {
     const fetchData = async () => {
-      // Fetch Incomes
+      // Get the current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        console.error('Error getting user:', userError);
+        return;
+      }
+
+      const userId = user.id;
+
+      // Fetch Incomes for this user only
       const { data: incomes, error: incomeError } = await supabase
         .from('incomes')
-        .select('amount');
+        .select('amount')
+        .eq('user_id', userId);
 
-      // Fetch Expenses
+      // Fetch Expenses for this user only
       const { data: expenses, error: expenseError } = await supabase
         .from('expenses')
-        .select('amount');
+        .select('amount')
+        .eq('user_id', userId);
 
       if (!incomeError && incomes) {
         const incomeSum = incomes.reduce((acc: number, curr: { amount: number }) => acc + curr.amount, 0);
         setIncomeTotal(incomeSum);
+      } else {
+        console.error('Error fetching incomes:', incomeError);
       }
 
       if (!expenseError && expenses) {
         const expenseSum = expenses.reduce((acc: number, curr: { amount: number }) => acc + curr.amount, 0);
         setExpenseTotal(expenseSum);
+      } else {
+        console.error('Error fetching expenses:', expenseError);
       }
     };
 

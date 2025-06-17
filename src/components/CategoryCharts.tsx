@@ -17,8 +17,32 @@ export default function CategoryCharts() {
 
   useEffect(() => {
     const fetchCategoryData = async () => {
-      const { data: expenses } = await supabase.from('expenses').select('amount, category');
-      const { data: incomes } = await supabase.from('incomes').select('amount, category');
+      // Get the logged-in user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        console.error('Error fetching user:', userError);
+        return;
+      }
+
+      const userId = user.id;
+
+      // Fetch this user's expenses only
+      const { data: expenses, error: expenseError } = await supabase
+        .from('expenses')
+        .select('amount, category')
+        .eq('user_id', userId);
+
+      // Fetch this user's incomes only
+      const { data: incomes, error: incomeError } = await supabase
+        .from('incomes')
+        .select('amount, category')
+        .eq('user_id', userId);
+
+      if (expenseError || incomeError) {
+        console.error('Error fetching data:', expenseError || incomeError);
+        return;
+      }
 
       if (expenses) {
         const expenseSummary: Record<string, number> = {};

@@ -26,13 +26,27 @@ export default function ExpenseChart() {
 
   useEffect(() => {
     const fetchData = async () => {
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        console.error('Error getting user:', userError);
+        return;
+      }
+
+      const userId = user.id;
+
+      // Fetch only this user's expenses
       const { data: expenses, error: expenseError } = await supabase
         .from('expenses')
-        .select('amount, created_at, category');
+        .select('amount, created_at, category')
+        .eq('user_id', userId);
 
+      // Fetch only this user's incomes
       const { data: incomes, error: incomeError } = await supabase
         .from('incomes')
-        .select('amount, created_at, category');
+        .select('amount, created_at, category')
+        .eq('user_id', userId);
 
       if (expenseError || incomeError) {
         console.error('Error fetching data:', expenseError || incomeError);
@@ -45,8 +59,8 @@ export default function ExpenseChart() {
           : data.filter((item) => item.category === category);
       };
 
-      const filteredExpenses = filterData(expenses!);
-      const filteredIncomes = filterData(incomes!);
+      const filteredExpenses = filterData(expenses || []);
+      const filteredIncomes = filterData(incomes || []);
 
       const summary: Record<string, { Income: number; Expense: number }> = {};
 
