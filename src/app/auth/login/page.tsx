@@ -20,7 +20,7 @@ export default function LoginPage() {
   useEffect(() => {
     localStorage.removeItem('theme');
     setTheme('light');
-  }, []);
+  }, [setTheme]);
 
 
   const handleLogin = async (e: React.FormEvent) => {

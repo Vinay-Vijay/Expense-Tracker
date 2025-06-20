@@ -119,3 +119,20 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes wave-once {
+  0% { transform: rotate(0deg); }
+  15% { transform: rotate(14deg); }
+  30% { transform: rotate(-8deg); }
+  40% { transform: rotate(14deg); }
+  50% { transform: rotate(-4deg); }
+  60% { transform: rotate(10deg); }
+  70% { transform: rotate(0deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.animate-wave-once {
+  display: inline-block;
+  animation: wave-once 2s ease-in-out 1;
+  transform-origin: 70% 70%;
+}

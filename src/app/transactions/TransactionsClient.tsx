@@ -3,14 +3,17 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import Navbar from '../../components/Header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import Navbar from '../../components/SideBar';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { motion } from 'framer-motion';
+import { format } from "date-fns";
+import { Calendar as CalendarIcon, ArrowUpCircle, ArrowDownCircle, Edit2, Trash2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 
 type Transaction = {
     id: string;
@@ -24,395 +27,363 @@ type Transaction = {
 
 export default function TransactionsPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [filterType, setFilterType] = useState<'All' | 'Income' | 'Expense'>('All');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [editTitle, setEditTitle] = useState('');
-  const [editAmount, setEditAmount] = useState(0);
-  const [editCategory, setEditCategory] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [sortField, setSortField] = useState<'created_at' | 'amount'>('created_at');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
-  const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
-  const itemsPerPage = 6;
-  const [isLoading, setIsLoading] = useState(true);
+    const [filterType, setFilterType] = useState<'All' | 'Income' | 'Expense'>('All');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+    const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+    const [sortField, setSortField] = useState<'created_at' | 'amount'>('created_at');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [currentPage, setCurrentPage] = useState(1);
 
-  const supabase = createClientComponentClient();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
+    const [editTitle, setEditTitle] = useState('');
+    const [editAmount, setEditAmount] = useState(0);
+    const [editCategory, setEditCategory] = useState('');
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
+    const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
+    const [editConfirmDialogOpen, setEditConfirmDialogOpen] = useState(false);
+    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
-  // Parse URL params only once at mount
-  useEffect(() => {
-    const type = searchParams.get('type') as 'All' | 'Income' | 'Expense';
-    const search = searchParams.get('search') || '';
-    const start = searchParams.get('start') || '';
-    const end = searchParams.get('end') || '';
-    const sort = searchParams.get('sort') as 'created_at' | 'amount';
-    const order = searchParams.get('order') as 'asc' | 'desc';
+    const itemsPerPage = 6;
+    const supabase = createClientComponentClient();
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const pathname = usePathname();
 
-    setFilterType(type || 'All');
-    setSearchTerm(search);
-    setStartDate(start);
-    setEndDate(end);
-    setSortField(sort || 'created_at');
-    setSortOrder(order || 'desc');
-  }, []);
+    const getUTCDate = (date: Date): Date => new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
 
-  // Fetch transactions
-  useEffect(() => {
-    const fetchTransactions = async () => {
-      setIsLoading(true);
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        router.push('/');
-        return;
-      }
+    useEffect(() => {
+        const type = searchParams.get('type') as 'All' | 'Income' | 'Expense';
+        const search = searchParams.get('search') || '';
+        const start = searchParams.get('start');
+        const end = searchParams.get('end');
+        const sort = searchParams.get('sort') as 'created_at' | 'amount';
+        const order = searchParams.get('order') as 'asc' | 'desc';
 
-      const userId = user.id;
-      const { data: expenses } = await supabase.from('expenses').select('*').eq('user_id', userId);
-      const { data: incomes } = await supabase.from('incomes').select('*').eq('user_id', userId);
+        setFilterType(type || 'All');
+        setSearchTerm(search);
+        setStartDate(start ? getUTCDate(new Date(start)) : undefined);
+        setEndDate(end ? getUTCDate(new Date(end)) : undefined);
+        setSortField(sort || 'created_at');
+        setSortOrder(order || 'desc');
+    }, [searchParams]);
 
-      const allTransactions = [
-        ...(expenses || []).map((exp) => ({ ...exp, type: 'Expense' })),
-        ...(incomes || []).map((inc) => ({ ...inc, type: 'Income' }))
-      ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+    useEffect(() => {
+        const fetchTransactions = async () => {
+            setIsLoading(true);
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                router.push('/');
+                return;
+            }
+            const userId = user.id;
+            const { data: expenses } = await supabase.from('expenses').select('*').eq('user_id', userId);
+            const { data: incomes } = await supabase.from('incomes').select('*').eq('user_id', userId);
+            const all = [
+                ...(expenses || []).map(exp => ({ ...exp, type: 'Expense' as const })),
+                ...(incomes || []).map(inc => ({ ...inc, type: 'Income' as const }))
+            ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+            setTransactions(all);
+            setIsLoading(false);
+        };
+        fetchTransactions();
+    }, [router, supabase]);
 
-      setTransactions(allTransactions);
-      setIsLoading(false);
+    const updateUrlParams = useCallback(() => {
+        const params = new URLSearchParams();
+        if (filterType !== 'All') params.set('type', filterType);
+        if (searchTerm) params.set('search', searchTerm);
+        if (startDate) params.set('start', format(startDate, 'yyyy-MM-dd'));
+        if (endDate) params.set('end', format(endDate, 'yyyy-MM-dd'));
+        if (sortField !== 'created_at') params.set('sort', sortField);
+        if (sortOrder !== 'desc') params.set('order', sortOrder);
+        router.replace(`${pathname}?${params.toString()}`);
+    }, [filterType, searchTerm, startDate, endDate, sortField, sortOrder, pathname, router]);
+
+    useEffect(() => { updateUrlParams(); }, [updateUrlParams]);
+
+    const handleDelete = async () => {
+        if (!transactionToDelete) return;
+        const table = transactionToDelete.type === 'Income' ? 'incomes' : 'expenses';
+        await supabase.from(table).delete().eq('id', transactionToDelete.id);
+        setTransactions(prev => prev.filter(tx => tx.id !== transactionToDelete.id));
+        setDeleteDialogOpen(false);
+        setTransactionToDelete(null);
     };
-    fetchTransactions();
-  }, []);
 
-  // Update URL params on state change
-  const updateUrlParams = useCallback(() => {
-    const params = new URLSearchParams();
-    if (filterType !== 'All') params.set('type', filterType);
-    if (searchTerm) params.set('search', searchTerm);
-    if (startDate) params.set('start', startDate);
-    if (endDate) params.set('end', endDate);
-    if (sortField !== 'created_at') params.set('sort', sortField);
-    if (sortOrder !== 'desc') params.set('order', sortOrder);
+    const openEditDialog = (tx: Transaction) => {
+        setTransactionToEdit(tx);
+        setEditTitle(tx.title);
+        setEditAmount(tx.amount);
+        setEditCategory(tx.category);
+        setIsEditDialogOpen(true);
+    };
 
-    router.replace(`${pathname}?${params.toString()}`);
-  }, [filterType, searchTerm, startDate, endDate, sortField, sortOrder, pathname, router]);
+    const handleConfirmEdit = () => { setEditConfirmDialogOpen(true); };
 
-  useEffect(() => {
-    updateUrlParams();
-  }, [updateUrlParams]);
+    const confirmEditSave = async () => {
+        if (!transactionToEdit) return;
+        const table = transactionToEdit.type === 'Income' ? 'incomes' : 'expenses';
+        const { data, error } = await supabase.from(table).update({
+            title: editTitle, amount: editAmount, category: editCategory, updated_at: new Date().toISOString()
+        }).eq('id', transactionToEdit.id).select().single();
 
-  // Handle delete
-  const handleDelete = async () => {
-    if (!transactionToDelete) return;
-    const table = transactionToDelete.type === 'Income' ? 'incomes' : 'expenses';
-    await supabase.from(table).delete().eq('id', transactionToDelete.id);
-    setTransactions(prev => prev.filter(tx => tx.id !== transactionToDelete.id));
-    setDeleteDialogOpen(false);
-    setTransactionToDelete(null);
-  };
+        if (!error && data) {
+            setTransactions(prev => prev.map(tx =>
+                tx.id === data.id ? { ...transactionToEdit, title: data.title, amount: data.amount, category: data.category, updated_at: data.updated_at } : tx
+            ));
+        }
+        setTransactionToEdit(null);
+        setEditConfirmDialogOpen(false);
+        setIsEditDialogOpen(false);
+    };
 
-  // Handle edit
-  const openEditDialog = (tx: Transaction) => {
-    setTransactionToEdit(tx);
-    setEditTitle(tx.title);
-    setEditAmount(tx.amount);
-    setEditCategory(tx.category);
-  };
+    const filteredAndSortedTransactions = transactions.filter((tx) => {
+        const matchesType = filterType === 'All' || tx.type === filterType;
+        const matchesSearch = tx.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            tx.category.toLowerCase().includes(searchTerm.toLowerCase());
+        const txDate = getUTCDate(new Date(tx.created_at));
+        const afterStart = !startDate || txDate >= getUTCDate(startDate);
+        const beforeEnd = !endDate || txDate <= getUTCDate(endDate);
+        return matchesType && matchesSearch && afterStart && beforeEnd;
+    }).sort((a, b) => {
+        if (sortField === 'created_at') return sortOrder === 'asc' ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime() : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        return sortOrder === 'asc' ? a.amount - b.amount : b.amount - a.amount;
+    });
 
-  const confirmEditSave = async () => {
-    if (!transactionToEdit) return;
-    const table = transactionToEdit.type === 'Income' ? 'incomes' : 'expenses';
-    const { data } = await supabase.from(table).update({
-      title: editTitle,
-      amount: editAmount,
-      category: editCategory,
-      updated_at: new Date().toISOString()
-    }).eq('id', transactionToEdit.id).select().single();
+    const totalPages = Math.ceil(filteredAndSortedTransactions.length / itemsPerPage) || 1;
+    useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages); }, [totalPages, currentPage]);
 
-    if (data) {
-      setTransactions(prev => prev.map(tx => tx.id === data.id ? { ...data, type: transactionToEdit.type } : tx));
-    }
-    setTransactionToEdit(null);
-  };
-
-  // Filter + Sort + Pagination logic
-  const filteredAndSortedTransactions = transactions.filter((tx) => {
-    const matchesType = filterType === 'All' || tx.type === filterType;
-    const matchesSearch = tx.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          tx.category.toLowerCase().includes(searchTerm.toLowerCase());
-    const afterStart = !startDate || new Date(tx.created_at) >= new Date(startDate);
-    const beforeEnd = !endDate || new Date(tx.created_at) <= new Date(endDate);
-    return matchesType && matchesSearch && afterStart && beforeEnd;
-  }).sort((a, b) => {
-    if (sortField === 'created_at') return sortOrder === 'asc' ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime() : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    return sortOrder === 'asc' ? a.amount - b.amount : b.amount - a.amount;
-  });
-
-  const totalPages = Math.ceil(filteredAndSortedTransactions.length / itemsPerPage) || 1;
-
-  useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-    if (currentPage === 0) setCurrentPage(1);
-  }, [totalPages, currentPage]);
-
-  const paginatedTransactions = filteredAndSortedTransactions.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  const resetFilters = () => {
-    setSearchTerm('');
-    setFilterType('All');
-    setStartDate('');
-    setEndDate('');
-    setSortField('created_at');
-    setSortOrder('desc');
-    setCurrentPage(1);
-  };
+    const resetFilters = () => {
+        setSearchTerm('');
+        setFilterType('All');
+        setStartDate(undefined);
+        setEndDate(undefined);
+        setSortField('created_at');
+        setSortOrder('desc');
+        setCurrentPage(1);
+    };
 
     return (
-        <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-foreground">
-            {/* Header / Navbar fixed at the top */}
-            <div className="fixed top-0 left-0 w-full z-20 bg-white dark:bg-gray-950 shadow-md border-b border-gray-200 dark:border-gray-800">
-                <Navbar user={null} />
-            </div>
+        <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white">
+            <Navbar user={null} />
+            <main className="flex-grow flex justify-center p-4 pt-20">
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-4xl space-y-6">
+                    {/* Filters */}
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white/30 dark:bg-black/30 backdrop-blur-md p-4 rounded-xl shadow-md border border-gradient-to-r from-purple-400 via-indigo-400 to-blue-400">
+                        {/* Search */}
+                        <Input
+                            placeholder="Search by title or category..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full md:w-[300px] bg-white/50 dark:bg-black/50"
+                        />
 
-            {/* Main content taking the rest of the available space, with padding for the fixed header */}
-            <main className="flex-grow flex items-start justify-center p-4 pt-20">
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5 }}
-                    className="w-full"
-                >
-                    {/* Main content card (Dashboard style) */}
-                    <Card className="bg-white/90 dark:bg-black/30 backdrop-blur-md shadow-xl rounded-2xl border dark:border-gradient-to-r dark:from-purple-400 dark:via-indigo-400 dark:to-blue-400">
-                        <CardHeader className="text-center mb-6">
-                            <CardTitle className="text-4xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-600">All Transactions</CardTitle>
-                        </CardHeader>
-
-                        <CardContent className="space-y-8">
-                            {/* Filters and Search */}
-                            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                                <Input
-                                    placeholder="Search by title or category..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full md:w-[350px] rounded-md shadow-sm bg-white border border-gray-300 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white focus:ring-blue-500 focus:border-blue-500"
-                                />
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="w-full md:w-[150px] rounded-md shadow-sm bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:hover:bg-gray-700">
-                                            Filters
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="p-4 space-y-4 w-[300px] bg-white rounded-md shadow-lg border border-gray-200 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white">
-                                        {/* Type Filter */}
-                                        <div className="space-y-2">
-                                            <DropdownMenuLabel className="text-gray-700 dark:text-gray-300">Type</DropdownMenuLabel>
-                                            <Select value={filterType} onValueChange={(val) => { setFilterType(val as 'All' | 'Income' | 'Expense'); setCurrentPage(1); }}>
-                                                <SelectTrigger className="w-full bg-white border border-gray-300 text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white"><SelectValue placeholder="Filter Type" /></SelectTrigger>
-                                                <SelectContent className="bg-white border border-gray-200 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white">
-                                                    <SelectItem value="All">All</SelectItem>
-                                                    <SelectItem value="Income">Income</SelectItem>
-                                                    <SelectItem value="Expense">Expense</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        {/* Date Range Filter */}
-                                        <div className="space-y-2">
-                                            <DropdownMenuLabel className="text-gray-700 dark:text-gray-300">Date Range</DropdownMenuLabel>
-                                            <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }} className="bg-white border border-gray-300 text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-                                            <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }} className="bg-white border border-gray-300 text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-                                        </div>
-                                        {/* Sort Filter */}
-                                        <div className="space-y-2">
-                                            <DropdownMenuLabel className="text-gray-700 dark:text-gray-300">Sort By</DropdownMenuLabel>
-                                            <Select value={sortField} onValueChange={(val) => { setSortField(val as 'created_at' | 'amount'); setCurrentPage(1); }}>
-                                                <SelectTrigger className="w-full bg-white border border-gray-300 text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white"><SelectValue /></SelectTrigger>
-                                                <SelectContent className="bg-white border border-gray-200 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white">
-                                                    <SelectItem value="created_at">Date</SelectItem>
-                                                    <SelectItem value="amount">Amount</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <Select value={sortOrder} onValueChange={(val) => { setSortOrder(val as 'asc' | 'desc'); setCurrentPage(1); }}>
-                                                <SelectTrigger className="w-full bg-white border border-gray-300 text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white"><SelectValue /></SelectTrigger>
-                                                <SelectContent className="bg-white border border-gray-200 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white">
-                                                    <SelectItem value="asc">Ascending</SelectItem>
-                                                    <SelectItem value="desc">Descending</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <Button variant="outline" onClick={resetFilters} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 dark:border-gray-600 rounded-md">Reset Filters</Button>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
-
-                            {/* Loading State / Progress Bar */}
-                            {isLoading ? (
-                                <div className="w-full bg-gray-200 rounded-full h-2.5 mt-8 overflow-hidden dark:bg-gray-700">
-                                    <motion.div
-                                        className="bg-blue-600 h-2.5 rounded-full"
-                                        initial={{ width: '0%' }}
-                                        animate={{ width: '100%' }}
-                                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                                    ></motion.div>
+                        {/* Filter Dropdown */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" className="bg-white/30 dark:bg-black/30 backdrop-blur-md">
+                                    Filter & Sort
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="p-4 space-y-4 w-64 bg-white/30 dark:bg-black/30 backdrop-blur-md border border-gradient-to-r from-purple-400 via-indigo-400 to-blue-400">
+                                {/* Type */}
+                                <div>
+                                    <DropdownMenuLabel>Type</DropdownMenuLabel>
+                                    <Select value={filterType} onValueChange={(val) => setFilterType(val as 'All' | 'Income' | 'Expense')}>
+                                        <SelectTrigger className="w-full bg-white/20 dark:bg-black/20">
+                                            <SelectValue placeholder="Select Type" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="All">All</SelectItem>
+                                            <SelectItem value="Income">Income</SelectItem>
+                                            <SelectItem value="Expense">Expense</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
-                            ) : filteredAndSortedTransactions.length === 0 ? (
-                                <div className="text-center text-gray-500 mt-20 p-8 bg-gray-100 rounded-lg shadow-inner border border-gray-200 dark:text-gray-400 dark:bg-black/50 dark:border-gray-700">
-                                    <p className="text-xl font-semibold mb-2">No transactions found.</p>
-                                    <p className="text-md">Try adjusting your filters or add a new transaction.</p>
+
+                                {/* Date Range */}
+                                <div className="space-y-2">
+                                    <DropdownMenuLabel>Date Range</DropdownMenuLabel>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className="w-full bg-white/20 dark:bg-black/20">
+                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                {startDate ? format(startDate, "PPP") : 'Start Date'}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent>
+                                            <Calendar mode="single" selected={startDate} onSelect={setStartDate} />
+                                        </PopoverContent>
+                                    </Popover>
+
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className="w-full bg-white/20 dark:bg-black/20">
+                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                {endDate ? format(endDate, "PPP") : 'End Date'}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent>
+                                            <Calendar mode="single" selected={endDate} onSelect={setEndDate} />
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                                    {paginatedTransactions.map((tx, idx) => (
-                                        <motion.div
-                                            key={tx.id}
-                                            initial={{ opacity: 0, y: 20 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: idx * 0.08, duration: 0.3 }}
+
+                                {/* Sort By */}
+                                <div>
+                                    <DropdownMenuLabel>Sort By</DropdownMenuLabel>
+                                    <Select value={sortField} onValueChange={(val) => setSortField(val as 'created_at' | 'amount')}>
+                                        <SelectTrigger className="w-full bg-white/20 dark:bg-black/20">
+                                            <SelectValue placeholder="Sort Field" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="created_at">Date</SelectItem>
+                                            <SelectItem value="amount">Amount</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <Select value={sortOrder} onValueChange={(val) => setSortOrder(val as 'asc' | 'desc')}>
+                                        <SelectTrigger className="w-full mt-2 bg-white/20 dark:bg-black/20">
+                                            <SelectValue placeholder="Sort Order" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="asc">Ascending</SelectItem>
+                                            <SelectItem value="desc">Descending</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Reset Filters */}
+                                <Button variant="outline" className="w-full bg-white/20 dark:bg-black/20" onClick={resetFilters}>
+                                    Reset Filters
+                                </Button>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+
+                    {/* Transactions List */}
+                    {isLoading ? <p className="text-center">Loading...</p> : (
+                        <div className="overflow-y-auto space-y-4 pr-2">
+                            {filteredAndSortedTransactions.map((tx, idx) => (
+                                <motion.div
+                                    key={tx.id}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: idx * 0.03 }}
+                                    className="flex items-center justify-between bg-white/30 dark:bg-black/30 backdrop-blur-md p-4 rounded-xl shadow-md border border-gradient-to-r from-purple-400 via-indigo-400 to-blue-400"
+                                >
+                                    {/* Icon */}
+                                    <div>
+                                        {tx.type === 'Income' ? (
+                                            <ArrowDownCircle className="w-6 h-6 text-green-500" />
+                                        ) : (
+                                            <ArrowUpCircle className="w-6 h-6 text-red-500" />
+                                        )}
+                                    </div>
+
+                                    {/* Info */}
+                                    <div className="flex-1 mx-4">
+                                        <p className="font-semibold">{tx.title}</p>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 space-x-4">
+                                            <span>{tx.category}</span>
+                                            <span>{new Date(tx.created_at).toLocaleDateString()}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Amount */}
+                                    <p
+                                        className={`font-bold text-lg ${tx.type === 'Income'
+                                                ? 'bg-gradient-to-r from-green-400 to-green-600 text-transparent bg-clip-text'
+                                                : 'bg-gradient-to-r from-red-400 to-red-600 text-transparent bg-clip-text'
+                                            }`}
+                                    >
+                                        ₹ {tx.amount.toLocaleString('en-IN')}
+                                    </p>
+
+                                    {/* Edit & Delete */}
+                                    <div className="flex space-x-2 ml-4">
+                                        <button
+                                            onClick={() => openEditDialog(tx)}
+                                            className="cursor-pointer p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                                         >
-                                            <Card className="bg-white border border-gray-200 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 dark:bg-black/50 dark:border-gray-700">
-                                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                                    <CardTitle className={`text-xl font-semibold ${tx.type === 'Income' ? 'bg-gradient-to-r from-green-400 to-green-600 text-transparent bg-clip-text' : 'bg-gradient-to-r from-red-400 to-red-600 text-transparent bg-clip-text'}`}>
-                                                        {tx.title}
-                                                    </CardTitle>
-                                                    <span className={`text-sm font-medium px-2 py-1 rounded-full ${tx.type === 'Income' ? 'bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-200' : 'bg-red-100 text-red-700 dark:bg-red-800 dark:text-red-200'}`}>
-                                                        {tx.type}
-                                                    </span>
-                                                </CardHeader>
-                                                <CardContent className="space-y-1 text-gray-800 dark:text-gray-300">
-                                                    <p className="text-xl font-bold">₹ {tx.amount.toLocaleString('en-IN')}</p>
-                                                    <p className="text-sm">Category: <span className="font-medium">{tx.category}</span></p>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400">Added: {new Date(tx.created_at).toLocaleString()}</p>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400">Updated: {new Date(tx.updated_at).toLocaleString()}</p>
-                                                    <div className="flex justify-end space-x-2 pt-4">
-                                                        <Dialog onOpenChange={(isOpen) => !isOpen && setTransactionToEdit(null)}>
-                                                            <DialogTrigger asChild>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="default"
-                                                                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-md"
-                                                                    onClick={() => openEditDialog(tx)}
-                                                                >
-                                                                    Edit
-                                                                </Button>
-                                                            </DialogTrigger>
-                                                            <DialogContent className="sm:max-w-[425px] bg-white border border-gray-200 text-gray-900 rounded-md shadow-lg dark:bg-gray-800 dark:border-gray-700 dark:text-white">
-                                                                <DialogTitle className="text-gray-800 dark:text-white">Edit {tx.type}</DialogTitle>
-                                                                <DialogDescription className="text-gray-600 dark:text-gray-300">
-                                                                    Make changes to your transaction here. Click save when you&apos;re done.
-                                                                </DialogDescription>
-                                                                <div className="grid gap-4 py-4">
-                                                                    <div className="grid grid-cols-4 items-center gap-4">
-                                                                        <label htmlFor="edit-title" className="text-gray-700 text-right dark:text-gray-300">Title</label>
-                                                                        <Input
-                                                                            id="edit-title"
-                                                                            value={editTitle}
-                                                                            onChange={(e) => setEditTitle(e.target.value)}
-                                                                            className="col-span-3 bg-white border border-gray-300 text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-blue-500 focus:border-blue-500"
-                                                                        />
-                                                                    </div>
-                                                                    <div className="grid grid-cols-4 items-center gap-4">
-                                                                        <label htmlFor="edit-amount" className="text-gray-700 text-right dark:text-gray-300">Amount</label>
-                                                                        <Input
-                                                                            id="edit-amount"
-                                                                            type="number"
-                                                                            value={editAmount}
-                                                                            onChange={(e) => setEditAmount(Number(e.target.value))}
-                                                                            className="col-span-3 bg-white border border-gray-300 text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-blue-500 focus:border-blue-500"
-                                                                        />
-                                                                    </div>
-                                                                    <div className="grid grid-cols-4 items-center gap-4">
-                                                                        <label htmlFor="edit-category" className="text-gray-700 text-right dark:text-gray-300">Category</label>
-                                                                        <Select value={editCategory} onValueChange={setEditCategory}>
-                                                                            <SelectTrigger id="edit-category" className="col-span-3 bg-white border border-gray-300 text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                                                                <SelectValue placeholder="Select Category" />
-                                                                            </SelectTrigger>
-                                                                            <SelectContent className="bg-white border border-gray-200 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white">
-                                                                                {tx.type === 'Income' ? (
-                                                                                    ["Salary", "Freelance", "Investments", "Gifts", "Other"].map(cat => (
-                                                                                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                                                                                    ))
-                                                                                ) : (
-                                                                                    ["Food", "Transport", "Entertainment", "Shopping", "Health", "Utilities", "Travel", "Education", "Rent"].map(cat => (
-                                                                                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                                                                                    ))
-                                                                                )}
-                                                                            </SelectContent>
-                                                                        </Select>
-                                                                    </div>
-                                                                </div>
-                                                                <DialogFooter>
-                                                                    <Button onClick={confirmEditSave} className="bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-md">Save changes</Button>
-                                                                </DialogFooter>
-                                                            </DialogContent>
-                                                        </Dialog>
-
-                                                        <Button
-                                                            size="sm"
-                                                            variant="destructive"
-                                                            className="bg-red-600 hover:bg-red-700 text-white rounded-md dark:bg-red-800 dark:hover:bg-red-900 dark:text-gray-200"
-                                                            onClick={() => { setTransactionToDelete(tx); setDeleteDialogOpen(true); }}
-                                                        >
-                                                            Delete
-                                                        </Button>
-                                                    </div>
-                                                </CardContent>
-                                            </Card>
-                                        </motion.div>
-                                    ))}
-                                </div>
-                            )}
-
-                        </CardContent>
-                    </Card>
+                                            <Edit2 className="w-4 h-4 text-blue-500" />
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setTransactionToDelete(tx);
+                                                setDeleteDialogOpen(true);
+                                            }}
+                                            className="cursor-pointer p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                                        >
+                                            <Trash2 className="w-4 h-4 text-red-500" />
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+                    )}
                 </motion.div>
+
+                {/* Edit Dialog */}
+                <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                    <DialogContent>
+                        <DialogTitle>Edit Transaction</DialogTitle>
+                        <DialogDescription>Modify transaction details below.</DialogDescription>
+                        <div className="space-y-4">
+                            <Input
+                                placeholder="Title"
+                                value={editTitle}
+                                onChange={(e) => setEditTitle(e.target.value)}
+                            />
+                            <Input
+                                placeholder="Amount"
+                                type="number"
+                                value={editAmount}
+                                onChange={(e) => setEditAmount(Number(e.target.value))}
+                            />
+                            <Input
+                                placeholder="Category"
+                                value={editCategory}
+                                onChange={(e) => setEditCategory(e.target.value)}
+                            />
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button onClick={handleConfirmEdit}>
+                                Save
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </main>
+
 
             {/* Delete Confirmation Dialog */}
             <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                <DialogContent className="sm:max-w-[425px] bg-white border border-gray-200 text-gray-900 rounded-md shadow-lg dark:bg-gray-800 dark:border-gray-700 dark:text-white">
-                    <DialogTitle className="text-gray-800 dark:text-white">Confirm Deletion</DialogTitle>
-                    <DialogDescription className="text-gray-600 dark:text-gray-300">
-                        Are you sure you want to delete this transaction? This action cannot be undone.
-                    </DialogDescription>
+                <DialogContent>
+                    <DialogTitle>Confirm Deletion</DialogTitle>
+                    <DialogDescription>Are you sure you want to delete this transaction?</DialogDescription>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-md dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 dark:border-gray-600">Cancel</Button>
-                        <Button variant="destructive" onClick={handleDelete} className="bg-red-600 hover:bg-red-700 text-white rounded-md shadow-md">Delete</Button>
+                        <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+                        <Button variant="destructive" onClick={handleDelete}>Delete</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* Pagination Controls - Fixed at bottom */}
-            {filteredAndSortedTransactions.length > 0 && (
-                <div className="fixed bottom-0 left-0 w-full z-20 bg-white py-3 flex justify-center items-center space-x-3 shadow-top border-t border-gray-200 dark:bg-gray-950 dark:border-gray-800">
-                    <Button
-                        size="sm"
-                        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                        disabled={currentPage === 1}
-                        variant="outline"
-                        className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 rounded-md dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:hover:bg-gray-700"
-                    >
-                        Previous
-                    </Button>
-                    <span className="text-gray-700 text-xs font-semibold dark:text-gray-300">
-                        Page {currentPage} of {totalPages}
-                    </span>
-                    <Button
-                        size="sm"
-                        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                        disabled={currentPage === totalPages}
-                        variant="outline"
-                        className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 rounded-md dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:hover:bg-gray-700"
-                    >
-                        Next
-                    </Button>
-                </div>
-            )}
+            {/* Edit Confirmation Dialog */}
+            <Dialog open={editConfirmDialogOpen} onOpenChange={setEditConfirmDialogOpen}>
+                <DialogContent>
+                    <DialogTitle>Confirm Edit</DialogTitle>
+                    <DialogDescription>Are you sure you want to save changes?</DialogDescription>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditConfirmDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={confirmEditSave}>Confirm</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

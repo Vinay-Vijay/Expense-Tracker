@@ -61,7 +61,7 @@ export default function CategoryAndHistoryCards() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {/* Categories Card */}
-      <Card className="bg-white/30 dark:bg-black/30 backdrop-blur-md shadow-xl rounded-2xl border border-gradient-to-r from-purple-400 via-indigo-400 to-blue-400">
+      <Card className="bg-white/30 dark:bg-black/30 backdrop-blur-md shadow-sm rounded-2xl border border-gradient-to-r from-purple-400 via-indigo-400 to-blue-400">
         <CardHeader>
           <CardTitle className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-600">
             Categories
@@ -96,7 +96,7 @@ export default function CategoryAndHistoryCards() {
       </Card>
 
       {/* History Card */}
-      <Card className="bg-white/30 dark:bg-black/30 backdrop-blur-md shadow-xl rounded-2xl border border-gradient-to-r from-purple-400 via-indigo-400 to-blue-400">
+      <Card className="bg-white/30 dark:bg-black/30 backdrop-blur-md shadow-sm rounded-2xl border border-gradient-to-r from-purple-400 via-indigo-400 to-blue-400">
         <CardHeader>
           <CardTitle className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-600">
             History

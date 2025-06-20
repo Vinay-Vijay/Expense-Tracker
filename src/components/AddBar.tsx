@@ -11,6 +11,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 export default function AddBar() {
   const supabase = createClientComponentClient();
   const [fullName, setFullName] = useState<string>('Loading...');
+  const [isLoading, setIsLoading] = useState(true);
 
   // Income state
   const [openIncome, setOpenIncome] = useState(false);
@@ -32,6 +33,7 @@ export default function AddBar() {
       if (userError || !user) {
         console.error('Error getting user:', userError);
         setFullName('Guest');
+        setIsLoading(false);
         return;
       }
 
@@ -47,6 +49,7 @@ export default function AddBar() {
       } else {
         setFullName(data?.full_name || 'Guest');
       }
+      setIsLoading(false); // mark loading as complete
     };
 
     fetchFullName();
@@ -104,25 +107,26 @@ export default function AddBar() {
 
   return (
     <div className="w-full flex justify-between items-center p-6 rounded-2xl 
-      bg-white/30 dark:bg-black/30 backdrop-blur-md shadow-xl border 
+      bg-white/30 dark:bg-black/30 backdrop-blur-md shadow-sm border 
       border-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">
 
-      <h2 className="text-2xl font-bold bg-clip-text text-transparent 
-        bg-gradient-to-r from-blue-600 to-indigo-600">
-        Hello, {fullName || "Guest"} 👋
+      <h2 className="text-2xl font-bold text-black dark:text-white">
+        Hello, {fullName || "Guest"}{" "}
+        {!isLoading && (<span className="inline-block animate-wave-once">👋</span>)}
       </h2>
+
 
       <div className="flex space-x-4">
         {/* New Income Dialog */}
         <Dialog open={openIncome} onOpenChange={setOpenIncome}>
           <DialogTrigger asChild>
             <Button className="bg-gradient-to-r from-green-400 to-green-600 text-white
-              hover:from-green-500 hover:to-green-700 transition-all shadow-md">
+              hover:from-green-500 hover:to-green-700 transition-all shadow-sm">
               New Income
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px] space-y-4
-        bg-white border border-gray-200 text-gray-900 rounded-md shadow-lg
+        bg-white border border-gray-200 text-gray-900 rounded-md shadow-sm
         dark:bg-gray-800 dark:border-gray-700 dark:text-white">
             <DialogTitle className="text-gray-800 dark:text-white">New Income</DialogTitle>
             {/* You might want a DialogDescription here too for consistency if the edit dialog has one */}
@@ -192,12 +196,12 @@ export default function AddBar() {
         <Dialog open={openExpense} onOpenChange={setOpenExpense}>
           <DialogTrigger asChild>
             <Button className="bg-gradient-to-r from-red-400 to-red-600 text-white
-              hover:from-red-500 hover:to-red-700 transition-all shadow-md">
+              hover:from-red-500 hover:to-red-700 transition-all shadow-sm">
               New Expense
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px] space-y-4
-        bg-white border border-gray-200 text-gray-900 rounded-md shadow-lg
+        bg-white border border-gray-200 text-gray-900 rounded-md shadow-sm
         dark:bg-gray-800 dark:border-gray-700 dark:text-white">
             <DialogTitle className="text-gray-800 dark:text-white">New Expense</DialogTitle>
             {/* You might want a DialogDescription here too for consistency if the edit dialog has one */}

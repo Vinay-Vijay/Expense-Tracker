@@ -73,7 +73,7 @@ export default function CategoryCharts() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {/* Income Chart */}
-      <div className="bg-white/30 dark:bg-black/30 backdrop-blur-md shadow-xl rounded-2xl p-6 border border-gradient-to-r from-green-400 via-emerald-400 to-teal-400">
+      <div className="bg-white/30 dark:bg-black/30 backdrop-blur-md shadow-sm rounded-2xl p-6 border border-gradient-to-r from-green-400 via-emerald-400 to-teal-400">
         <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-emerald-600 text-center mb-4">
           Income (₹)
         </h2>
@@ -104,7 +104,7 @@ export default function CategoryCharts() {
       </div>
 
       {/* Expense Chart */}
-      <div className="bg-white/30 dark:bg-black/30 backdrop-blur-md shadow-xl rounded-2xl p-6 border border-gradient-to-r from-red-400 via-rose-400 to-pink-400">
+      <div className="bg-white/30 dark:bg-black/30 backdrop-blur-md shadow-sm rounded-2xl p-6 border border-gradient-to-r from-red-400 via-rose-400 to-pink-400">
         <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-500 to-pink-600 text-center mb-4">
           Expenses (₹)
         </h2>

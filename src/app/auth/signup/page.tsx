@@ -18,7 +18,7 @@ export default function SignupPage() {
   const [passwordLengthError, setPasswordLengthError] = useState('');
   const [passwordMatchError, setPasswordMatchError] = useState('');
   const [formError, setFormError] = useState(''); // General form submission error
-  const { theme, setTheme } = useTheme();
+  const { setTheme } = useTheme();
 
   const supabase = createClientComponentClient();
   const router = useRouter();
@@ -26,7 +26,7 @@ export default function SignupPage() {
   useEffect(() => {
     localStorage.removeItem('theme');
     setTheme('light');
-  }, []);
+  }, [setTheme]);
 
 
   // Function to validate password length
