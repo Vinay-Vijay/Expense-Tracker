@@ -1,126 +1,136 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid
+} from 'recharts';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-type Expense = { amount: number; category: string; };
-type Income = { amount: number; category: string; };
-
-const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7f50', '#00C49F'];
-const dummyData = [{ name: 'No Data', value: 1 }]; // placeholder if no data
+type Transaction = { amount: number; created_at: string };
 
 export default function CategoryCharts() {
   const supabase = createClientComponentClient();
-  const [expenseData, setExpenseData] = useState<{ name: string; value: number }[]>([]);
-  const [incomeData, setIncomeData] = useState<{ name: string; value: number }[]>([]);
+  const [incomeData, setIncomeData] = useState<{ date: string; amount: number }[]>([]);
+  const [expenseData, setExpenseData] = useState<{ date: string; amount: number }[]>([]);
 
   useEffect(() => {
-    const fetchCategoryData = async () => {
-      // Get the logged-in user
+    const fetchData = async () => {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-
       if (userError || !user) {
-        console.error('Error fetching user:', userError);
+        console.error("User fetch error:", userError);
         return;
       }
 
       const userId = user.id;
 
-      // Fetch this user's expenses only
-      const { data: expenses, error: expenseError } = await supabase
-        .from('expenses')
-        .select('amount, category')
-        .eq('user_id', userId);
+      const { data: incomes, error: incomeErr } = await supabase
+        .from("incomes")
+        .select("amount, created_at")
+        .eq("user_id", userId);
 
-      // Fetch this user's incomes only
-      const { data: incomes, error: incomeError } = await supabase
-        .from('incomes')
-        .select('amount, category')
-        .eq('user_id', userId);
+      const { data: expenses, error: expenseErr } = await supabase
+        .from("expenses")
+        .select("amount, created_at")
+        .eq("user_id", userId);
 
-      if (expenseError || incomeError) {
-        console.error('Error fetching data:', expenseError || incomeError);
+      if (incomeErr || expenseErr) {
+        console.error("Fetch error:", incomeErr || expenseErr);
         return;
       }
 
-      if (expenses) {
-        const expenseSummary: Record<string, number> = {};
-        expenses.forEach((exp: Expense) => {
-          expenseSummary[exp.category] = (expenseSummary[exp.category] || 0) + exp.amount;
-        });
-        const expenseChart = Object.keys(expenseSummary).map(key => ({
-          name: key,
-          value: expenseSummary[key],
+      if (incomes) {
+        const formattedIncome = incomes.map((item: Transaction) => ({
+          date: new Date(item.created_at).toLocaleDateString("en-IN", {
+            month: "short",
+            day: "numeric"
+          }),
+          amount: item.amount
         }));
-        setExpenseData(expenseChart.length > 0 ? expenseChart : dummyData);
+        setIncomeData(formattedIncome);
       }
 
-      if (incomes) {
-        const incomeSummary: Record<string, number> = {};
-        incomes.forEach((inc: Income) => {
-          incomeSummary[inc.category] = (incomeSummary[inc.category] || 0) + inc.amount;
-        });
-        const incomeChart = Object.keys(incomeSummary).map(key => ({
-          name: key,
-          value: incomeSummary[key],
+      if (expenses) {
+        const formattedExpenses = expenses.map((item: Transaction) => ({
+          date: new Date(item.created_at).toLocaleDateString("en-IN", {
+            month: "short",
+            day: "numeric"
+          }),
+          amount: item.amount
         }));
-        setIncomeData(incomeChart.length > 0 ? incomeChart : dummyData);
+        setExpenseData(formattedExpenses);
       }
     };
 
-    fetchCategoryData();
+    fetchData();
   }, [supabase]);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {/* Expense by Category */}
-      <div className="w-full h-[300px]">
-        <h2 className="text-center font-semibold mb-2">Expenses by Category</h2>
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={expenseData}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius={80}
-              fill="#8884d8"
-              label
-            >
-              {expenseData.map((_, index) => (
-                <Cell key={`cell-exp-${index}`} fill={COLORS[index % COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip />
-            <Legend />
-          </PieChart>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Income Chart */}
+      <div className="bg-white/30 dark:bg-black/30 backdrop-blur-md shadow-xl rounded-2xl p-6 border border-gradient-to-r from-green-400 via-emerald-400 to-teal-400">
+        <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-emerald-600 text-center mb-4">
+          Income (₹)
+        </h2>
+        <ResponsiveContainer width="100%" height={300}>
+          <AreaChart data={incomeData}>
+            <defs>
+              <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.7} />
+                <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="4 4" stroke="#cbd5e1" strokeOpacity={0.4} />
+            <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 12 }} />
+            <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
+            <Tooltip 
+              contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '8px', border: '1px solid #ddd' }} 
+              formatter={(value: number) => [`₹ ${value}`, 'Amount']}
+            />
+            <Area
+              type="monotone"
+              dataKey="amount"
+              stroke="#22c55e"
+              strokeWidth={2}
+              fill="url(#incomeGradient)"
+            />
+          </AreaChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Income by Category */}
-      <div className="w-full h-[300px]">
-        <h2 className="text-center font-semibold mb-2">Incomes by Category</h2>
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={incomeData}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius={80}
-              fill="#82ca9d"
-              label
-            >
-              {incomeData.map((_, index) => (
-                <Cell key={`cell-inc-${index}`} fill={COLORS[index % COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip />
-            <Legend />
-          </PieChart>
+      {/* Expense Chart */}
+      <div className="bg-white/30 dark:bg-black/30 backdrop-blur-md shadow-xl rounded-2xl p-6 border border-gradient-to-r from-red-400 via-rose-400 to-pink-400">
+        <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-500 to-pink-600 text-center mb-4">
+          Expenses (₹)
+        </h2>
+        <ResponsiveContainer width="100%" height={300}>
+          <AreaChart data={expenseData}>
+            <defs>
+              <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#ef4444" stopOpacity={0.7} />
+                <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="4 4" stroke="#cbd5e1" strokeOpacity={0.4} />
+            <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 12 }} />
+            <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
+            <Tooltip 
+              contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '8px', border: '1px solid #ddd' }} 
+              formatter={(value: number) => [`₹ ${value}`, 'Amount']}
+            />
+            <Area
+              type="monotone"
+              dataKey="amount"
+              stroke="#ef4444"
+              strokeWidth={2}
+              fill="url(#expenseGradient)"
+            />
+          </AreaChart>
         </ResponsiveContainer>
       </div>
     </div>
