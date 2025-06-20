@@ -30,8 +30,6 @@ export default function Header({ user }: { user: string | null }) {
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
     if (!error) {
-      localStorage.removeItem('theme');
-      setTheme('light');
       router.push('/auth/login');
     } else {
       console.error("Logout error:", error);

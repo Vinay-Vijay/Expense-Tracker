@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff } from 'lucide-react';
+import { useTheme } from 'next-themes';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -17,9 +18,16 @@ export default function SignupPage() {
   const [passwordLengthError, setPasswordLengthError] = useState('');
   const [passwordMatchError, setPasswordMatchError] = useState('');
   const [formError, setFormError] = useState(''); // General form submission error
+  const { theme, setTheme } = useTheme();
 
   const supabase = createClientComponentClient();
   const router = useRouter();
+
+  useEffect(() => {
+    localStorage.removeItem('theme');
+    setTheme('light');
+  }, []);
+
 
   // Function to validate password length
   const validatePasswordLength = (pwd: string) => {
@@ -124,7 +132,7 @@ export default function SignupPage() {
           <input
             className="border p-2 rounded pr-10 w-full"
             type={showPassword1 ? "text" : "password"}
-            placeholder="Password (6+ characters)" 
+            placeholder="Password (6+ characters)"
             value={password}
             onChange={handlePasswordChange}
             required
