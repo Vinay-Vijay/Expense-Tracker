@@ -24,217 +24,154 @@ type Transaction = {
 
 export default function TransactionsPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [filterType, setFilterType] = useState<'All' | 'Income' | 'Expense'>('All');
-    const [searchTerm, setSearchTerm] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
-    const [editTitle, setEditTitle] = useState('');
-    const [editAmount, setEditAmount] = useState(0);
-    const [editCategory, setEditCategory] = useState('');
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
-    const [sortField, setSortField] = useState<'created_at' | 'amount'>('created_at');
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
-    const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
-    const itemsPerPage = 6;
-    const [isLoading, setIsLoading] = useState(true);
+  const [filterType, setFilterType] = useState<'All' | 'Income' | 'Expense'>('All');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [editTitle, setEditTitle] = useState('');
+  const [editAmount, setEditAmount] = useState(0);
+  const [editCategory, setEditCategory] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [sortField, setSortField] = useState<'created_at' | 'amount'>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
+  const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
+  const itemsPerPage = 6;
+  const [isLoading, setIsLoading] = useState(true);
 
-    const supabase = createClientComponentClient();
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const pathname = usePathname();
+  const supabase = createClientComponentClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
 
-    // Sync URL params with state
-    useEffect(() => {
-        const type = searchParams.get('type') as 'All' | 'Income' | 'Expense';
-        const search = searchParams.get('search') || '';
-        const start = searchParams.get('start') || '';
-        const end = searchParams.get('end') || '';
-        const sort = searchParams.get('sort') as 'created_at' | 'amount';
-        const order = searchParams.get('order') as 'asc' | 'desc';
+  // Parse URL params only once at mount
+  useEffect(() => {
+    const type = searchParams.get('type') as 'All' | 'Income' | 'Expense';
+    const search = searchParams.get('search') || '';
+    const start = searchParams.get('start') || '';
+    const end = searchParams.get('end') || '';
+    const sort = searchParams.get('sort') as 'created_at' | 'amount';
+    const order = searchParams.get('order') as 'asc' | 'desc';
 
-        if (type && type !== filterType) setFilterType(type);
-        if (search !== searchTerm) setSearchTerm(search);
-        if (start !== startDate) setStartDate(start);
-        if (end !== endDate) setEndDate(end);
-        if (sort && sort !== sortField) setSortField(sort);
-        if (order && order !== sortOrder) setSortOrder(order);
-    }, [searchParams, filterType, searchTerm, startDate, endDate, sortField, sortOrder]);
+    setFilterType(type || 'All');
+    setSearchTerm(search);
+    setStartDate(start);
+    setEndDate(end);
+    setSortField(sort || 'created_at');
+    setSortOrder(order || 'desc');
+  }, []);
 
+  // Fetch transactions
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      setIsLoading(true);
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        router.push('/');
+        return;
+      }
 
-    // Fetch transactions
-    useEffect(() => {
-        const fetchTransactions = async () => {
-            setIsLoading(true);
-            const { data: { user }, error: userError } = await supabase.auth.getUser();
-            if (userError || !user) {
-                router.push('/');
-                return;
-            }
+      const userId = user.id;
+      const { data: expenses } = await supabase.from('expenses').select('*').eq('user_id', userId);
+      const { data: incomes } = await supabase.from('incomes').select('*').eq('user_id', userId);
 
-            const userId = user.id;
-            const { data: expenses, error: expensesError } = await supabase.from('expenses').select('*').eq('user_id', userId);
-            const { data: incomes, error: incomesError } = await supabase.from('incomes').select('*').eq('user_id', userId);
+      const allTransactions = [
+        ...(expenses || []).map((exp) => ({ ...exp, type: 'Expense' })),
+        ...(incomes || []).map((inc) => ({ ...inc, type: 'Income' }))
+      ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
-            if (expensesError) console.error("Error fetching expenses:", expensesError);
-            if (incomesError) console.error("Error fetching incomes:", incomesError);
-
-            const allTransactions = [
-                ...(expenses || []).map((exp) => ({ ...exp, type: 'Expense' })),
-                ...(incomes || []).map((inc) => ({ ...inc, type: 'Income' }))
-            ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-
-            setTransactions(allTransactions);
-            setIsLoading(false);
-        };
-        fetchTransactions();
-    }, [supabase, router]);
-
-
-    // Update URL params
-    const updateUrlParams = useCallback(() => {
-        const currentParams = new URLSearchParams(searchParams.toString());
-        let hasChanges = false;
-
-        const updateParam = (key: string, value: string | null, defaultValue: string | null = null) => {
-            const currentValue = currentParams.get(key);
-            if (value !== null && value !== defaultValue) {
-                if (currentValue !== value) {
-                    currentParams.set(key, value);
-                    hasChanges = true;
-                }
-            } else {
-                if (currentParams.has(key)) {
-                    currentParams.delete(key);
-                    hasChanges = true;
-                }
-            }
-        };
-
-        updateParam('type', filterType, 'All');
-        updateParam('search', searchTerm);
-        updateParam('start', startDate);
-        updateParam('end', endDate);
-        updateParam('sort', sortField, 'created_at');
-        updateParam('order', sortOrder, 'desc');
-
-        const newQueryString = currentParams.toString();
-        const currentQueryString = searchParams.toString();
-
-        if (hasChanges || newQueryString !== currentQueryString) {
-            router.replace(`${pathname}?${newQueryString}`);
-        }
-    }, [filterType, searchTerm, startDate, endDate, sortField, sortOrder, pathname, router, searchParams]);
-
-    useEffect(() => {
-        updateUrlParams();
-    }, [updateUrlParams]);
-
-
-    const handleDelete = async () => {
-        if (!transactionToDelete) return;
-        const table = transactionToDelete.type === 'Income' ? 'incomes' : 'expenses';
-        const { error } = await supabase.from(table).delete().eq('id', transactionToDelete.id);
-        if (error) {
-            console.error("Error deleting transaction:", error);
-        } else {
-            setTransactions(prev => prev.filter(tx => tx.id !== transactionToDelete.id));
-        }
-        setDeleteDialogOpen(false);
-        setTransactionToDelete(null);
+      setTransactions(allTransactions);
+      setIsLoading(false);
     };
+    fetchTransactions();
+  }, []);
 
-    const openEditDialog = (tx: Transaction) => {
-        setTransactionToEdit(tx);
-        setEditTitle(tx.title);
-        setEditAmount(tx.amount);
-        setEditCategory(tx.category);
-    };
+  // Update URL params on state change
+  const updateUrlParams = useCallback(() => {
+    const params = new URLSearchParams();
+    if (filterType !== 'All') params.set('type', filterType);
+    if (searchTerm) params.set('search', searchTerm);
+    if (startDate) params.set('start', startDate);
+    if (endDate) params.set('end', endDate);
+    if (sortField !== 'created_at') params.set('sort', sortField);
+    if (sortOrder !== 'desc') params.set('order', sortOrder);
 
-    const confirmEditSave = async () => {
-        if (!transactionToEdit) return;
-        const table = transactionToEdit.type === 'Income' ? 'incomes' : 'expenses';
-        const { data, error } = await supabase.from(table).update({
-            title: editTitle,
-            amount: editAmount,
-            category: editCategory,
-            updated_at: new Date().toISOString(),
-        }).eq('id', transactionToEdit.id).select().single();
+    router.replace(`${pathname}?${params.toString()}`);
+  }, [filterType, searchTerm, startDate, endDate, sortField, sortOrder, pathname, router]);
 
-        if (error) {
-            console.error("Error updating transaction:", error);
-        } else if (data) {
-            setTransactions(prev => prev.map(tx => tx.id === data.id ? { ...data, type: transactionToEdit.type } : tx));
-        }
-        setTransactionToEdit(null);
-    };
+  useEffect(() => {
+    updateUrlParams();
+  }, [updateUrlParams]);
 
-    const filteredAndSortedTransactions = transactions.filter((tx) => {
-        const matchesType = filterType === 'All' || tx.type === filterType;
-        const title = tx.title?.toLowerCase() || '';
-        const category = tx.category?.toLowerCase() || '';
-        const matchesSearch = title.includes(searchTerm.toLowerCase()) || category.includes(searchTerm.toLowerCase());
+  // Handle delete
+  const handleDelete = async () => {
+    if (!transactionToDelete) return;
+    const table = transactionToDelete.type === 'Income' ? 'incomes' : 'expenses';
+    await supabase.from(table).delete().eq('id', transactionToDelete.id);
+    setTransactions(prev => prev.filter(tx => tx.id !== transactionToDelete.id));
+    setDeleteDialogOpen(false);
+    setTransactionToDelete(null);
+  };
 
-        let afterStart = true;
-        if (startDate) {
-            try {
-                const startDt = new Date(startDate);
-                startDt.setHours(0, 0, 0, 0);
-                afterStart = new Date(tx.created_at) >= startDt;
-            } catch (e) {
-                console.error("Invalid start date:", e);
-                afterStart = false;
-            }
-        }
+  // Handle edit
+  const openEditDialog = (tx: Transaction) => {
+    setTransactionToEdit(tx);
+    setEditTitle(tx.title);
+    setEditAmount(tx.amount);
+    setEditCategory(tx.category);
+  };
 
-        let beforeEnd = true;
-        if (endDate) {
-            try {
-                const endDt = new Date(endDate);
-                endDt.setHours(23, 59, 59, 999);
-                beforeEnd = new Date(tx.created_at) <= endDt;
-            } catch (e) {
-                console.error("Invalid end date:", e);
-                beforeEnd = false;
-            }
-        }
+  const confirmEditSave = async () => {
+    if (!transactionToEdit) return;
+    const table = transactionToEdit.type === 'Income' ? 'incomes' : 'expenses';
+    const { data } = await supabase.from(table).update({
+      title: editTitle,
+      amount: editAmount,
+      category: editCategory,
+      updated_at: new Date().toISOString()
+    }).eq('id', transactionToEdit.id).select().single();
 
-        return matchesType && matchesSearch && afterStart && beforeEnd;
-    }).sort((a, b) => {
-        if (sortField === 'created_at') {
-            const dateA = new Date(a.created_at).getTime();
-            const dateB = new Date(b.created_at).getTime();
-            return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
-        } else { // sortField === 'amount'
-            return sortOrder === 'asc' ? a.amount - b.amount : b.amount - a.amount;
-        }
-    });
+    if (data) {
+      setTransactions(prev => prev.map(tx => tx.id === data.id ? { ...data, type: transactionToEdit.type } : tx));
+    }
+    setTransactionToEdit(null);
+  };
 
-    const totalPages = Math.max(1, Math.ceil(filteredAndSortedTransactions.length / itemsPerPage));
+  // Filter + Sort + Pagination logic
+  const filteredAndSortedTransactions = transactions.filter((tx) => {
+    const matchesType = filterType === 'All' || tx.type === filterType;
+    const matchesSearch = tx.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          tx.category.toLowerCase().includes(searchTerm.toLowerCase());
+    const afterStart = !startDate || new Date(tx.created_at) >= new Date(startDate);
+    const beforeEnd = !endDate || new Date(tx.created_at) <= new Date(endDate);
+    return matchesType && matchesSearch && afterStart && beforeEnd;
+  }).sort((a, b) => {
+    if (sortField === 'created_at') return sortOrder === 'asc' ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime() : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    return sortOrder === 'asc' ? a.amount - b.amount : b.amount - a.amount;
+  });
 
-    useEffect(() => {
-        if (currentPage > totalPages && totalPages > 0) {
-            setCurrentPage(totalPages);
-        } else if (currentPage === 0 && totalPages > 0) {
-            setCurrentPage(1);
-        }
-    }, [totalPages, currentPage]);
+  const totalPages = Math.ceil(filteredAndSortedTransactions.length / itemsPerPage) || 1;
 
-    const paginatedTransactions = filteredAndSortedTransactions.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+    if (currentPage === 0) setCurrentPage(1);
+  }, [totalPages, currentPage]);
 
-    const resetFilters = () => {
-        setSearchTerm('');
-        setFilterType('All');
-        setStartDate('');
-        setEndDate('');
-        setSortField('created_at');
-        setSortOrder('desc');
-        setCurrentPage(1);
-    };
+  const paginatedTransactions = filteredAndSortedTransactions.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilterType('All');
+    setStartDate('');
+    setEndDate('');
+    setSortField('created_at');
+    setSortOrder('desc');
+    setCurrentPage(1);
+  };
 
     return (
         <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-foreground">
