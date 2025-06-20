@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { Calendar as CalendarIcon, ArrowUpCircle, ArrowDownCircle, Edit2, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Skeleton } from "@/components/ui/skeleton"; // Import the Skeleton component
 
 type Transaction = {
     id: string;
@@ -71,10 +72,11 @@ export default function TransactionsPage() {
 
     useEffect(() => {
         const fetchTransactions = async () => {
-            setIsLoading(true);
+            setIsLoading(true); // Start loading
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) {
                 router.push('/');
+                setIsLoading(false); // Stop loading if no user
                 return;
             }
             const userId = user.id;
@@ -85,7 +87,7 @@ export default function TransactionsPage() {
                 ...(incomes || []).map(inc => ({ ...inc, type: 'Income' as const }))
             ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
             setTransactions(all);
-            setIsLoading(false);
+            setIsLoading(false); // Stop loading after data is fetched
         };
         fetchTransactions();
     }, [router, supabase]);
@@ -262,10 +264,32 @@ export default function TransactionsPage() {
                         </DropdownMenu>
                     </div>
 
-                    {/* Transactions List */}
-                    {isLoading ? <p className="text-center">Loading...</p> : (
-                        <div className="overflow-y-auto space-y-4 pr-2">
-                            {filteredAndSortedTransactions.map((tx, idx) => (
+                    {/* Transactions List or Skeleton */}
+                    <div className="overflow-y-auto space-y-4 pr-2">
+                        {isLoading ? (
+                            // Render multiple shadcn Skeleton loaders while loading
+                            Array.from({ length: itemsPerPage }).map((_, index) => (
+                                <div
+                                    key={index}
+                                    className="flex items-center justify-between bg-white/30 dark:bg-black/30 backdrop-blur-md p-4 rounded-xl shadow-md border border-gradient-to-r from-purple-400 via-indigo-400 to-blue-400"
+                                >
+                                    <Skeleton className="w-6 h-6 rounded-full" /> {/* Icon placeholder */}
+                                    <div className="flex-1 mx-4 space-y-2">
+                                        <Skeleton className="h-4 w-3/4 rounded" /> {/* Title placeholder */}
+                                        <div className="flex space-x-4">
+                                            <Skeleton className="h-3 w-1/4 rounded" /> {/* Category placeholder */}
+                                            <Skeleton className="h-3 w-1/4 rounded" /> {/* Date placeholder */}
+                                        </div>
+                                    </div>
+                                    <Skeleton className="h-6 w-20 rounded" /> {/* Amount placeholder */}
+                                    <div className="flex space-x-2 ml-4">
+                                        <Skeleton className="w-4 h-4 rounded-full" /> {/* Edit icon placeholder */}
+                                        <Skeleton className="w-4 h-4 rounded-full" /> {/* Delete icon placeholder */}
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            filteredAndSortedTransactions.map((tx, idx) => (
                                 <motion.div
                                     key={tx.id}
                                     initial={{ opacity: 0, y: 10 }}
@@ -320,9 +344,12 @@ export default function TransactionsPage() {
                                         </button>
                                     </div>
                                 </motion.div>
-                            ))}
-                        </div>
-                    )}
+                            ))
+                        )}
+                         {!isLoading && filteredAndSortedTransactions.length === 0 && (
+                            <p className="text-center text-gray-500 dark:text-gray-400">No transactions found.</p>
+                        )}
+                    </div>
                 </motion.div>
 
                 {/* Edit Dialog */}

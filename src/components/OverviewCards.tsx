@@ -5,10 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Wallet, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { useSpring, animated } from '@react-spring/web';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function OverviewCards() {
   const [incomeTotal, setIncomeTotal] = useState(0);
   const [expenseTotal, setExpenseTotal] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
   const supabase = createClientComponentClient();
 
   useEffect(() => {
@@ -44,6 +46,8 @@ export default function OverviewCards() {
       } else {
         console.error('Error fetching expenses:', expenseError);
       }
+
+      setIsLoading(false); // Data fetching complete
     };
 
     fetchData();
@@ -67,9 +71,13 @@ export default function OverviewCards() {
           <ArrowUpCircle className="w-8 h-8 text-green-500" />
         </CardHeader>
         <CardContent>
-          <p className="text-3xl font-extrabold text-center bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-green-600 drop-shadow-sm">
-            ₹ <animated.span>{incomeSpring.val.to(val => val.toFixed(2))}</animated.span>
-          </p>
+          {isLoading ? (
+            <Skeleton className="h-8 w-32 mx-auto" />
+          ) : (
+            <p className="text-3xl font-extrabold text-center bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-green-600 drop-shadow-sm">
+              ₹ <animated.span>{incomeSpring.val.to(val => val.toFixed(2))}</animated.span>
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -82,9 +90,13 @@ export default function OverviewCards() {
           <ArrowDownCircle className="w-8 h-8 text-red-500" />
         </CardHeader>
         <CardContent>
-          <p className="text-3xl font-extrabold text-center bg-clip-text text-transparent bg-gradient-to-r from-red-400 to-pink-600 drop-shadow-sm">
-            ₹ <animated.span>{expenseSpring.val.to(val => val.toFixed(2))}</animated.span>
-          </p>
+          {isLoading ? (
+            <Skeleton className="h-8 w-32 mx-auto" />
+          ) : (
+            <p className="text-3xl font-extrabold text-center bg-clip-text text-transparent bg-gradient-to-r from-red-400 to-pink-600 drop-shadow-sm">
+              ₹ <animated.span>{expenseSpring.val.to(val => val.toFixed(2))}</animated.span>
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -97,9 +109,13 @@ export default function OverviewCards() {
           <Wallet className="w-8 h-8 text-blue-500" />
         </CardHeader>
         <CardContent>
-          <p className="text-3xl font-extrabold text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-600 drop-shadow-sm">
-            ₹ <animated.span>{balanceSpring.val.to(val => val.toFixed(2))}</animated.span>
-          </p>
+          {isLoading ? (
+            <Skeleton className="h-8 w-32 mx-auto" />
+          ) : (
+            <p className="text-3xl font-extrabold text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-600 drop-shadow-sm">
+              ₹ <animated.span>{balanceSpring.val.to(val => val.toFixed(2))}</animated.span>
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

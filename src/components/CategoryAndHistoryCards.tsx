@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Progress } from "@/components/ui/progress";
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Expense = { amount: number; category: string; title: string; created_at: string; };
 type Income = { amount: number; title: string; created_at: string; };
@@ -14,12 +15,14 @@ export default function CategoryAndHistoryCards() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [incomes, setIncomes] = useState<Income[]>([]);
   const [categoryData, setCategoryData] = useState<ExpenseWithCount[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) {
         console.error('Error getting user:', userError);
+        setIsLoading(false);
         return;
       }
       const userId = user.id;
@@ -51,6 +54,7 @@ export default function CategoryAndHistoryCards() {
       }));
 
       setCategoryData(result);
+      setIsLoading(false);
     };
 
     fetchData();
@@ -60,6 +64,7 @@ export default function CategoryAndHistoryCards() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      
       {/* Categories Card */}
       <Card className="bg-white/30 dark:bg-black/30 backdrop-blur-md shadow-sm rounded-2xl border border-gradient-to-r from-purple-400 via-indigo-400 to-blue-400">
         <CardHeader>
@@ -68,7 +73,16 @@ export default function CategoryAndHistoryCards() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {categoryData.length === 0 ? (
+          {isLoading ? (
+            // Skeleton for categories
+            Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="space-y-2">
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-2 w-full rounded-full" />
+                <Skeleton className="h-3 w-1/4" />
+              </div>
+            ))
+          ) : categoryData.length === 0 ? (
             <p className="text-center text-gray-500 dark:text-gray-400">No expenses recorded yet.</p>
           ) : (
             categoryData.map((cat, idx) => {
@@ -103,7 +117,18 @@ export default function CategoryAndHistoryCards() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {([...incomes.map((inc) => ({
+          {isLoading ? (
+            // Skeleton for history
+            Array.from({ length: 5 }).map((_, idx) => (
+              <div key={idx} className="flex justify-between items-center space-y-2">
+                <div>
+                  <Skeleton className="h-4 w-32 mb-1" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+                <Skeleton className="h-5 w-12" />
+              </div>
+            ))
+          ) : ([...incomes.map((inc) => ({
             type: 'income',
             title: inc.title,
             amount: inc.amount,
@@ -136,8 +161,9 @@ export default function CategoryAndHistoryCards() {
                   {item.type === 'income' ? '+' : '-'} ₹{item.amount.toFixed(2)}
                 </p>
               </div>
-            ))}
-          {incomes.length + expenses.length === 0 && (
+            ))
+          }
+          {(!isLoading && incomes.length + expenses.length === 0) && (
             <p className="text-center text-gray-500 dark:text-gray-400">No transaction history yet.</p>
           )}
         </CardContent>

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { Skeleton } from "./ui/skeleton";
 
 export default function AddBar() {
   const supabase = createClientComponentClient();
@@ -111,8 +112,14 @@ export default function AddBar() {
       border-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">
 
       <h2 className="text-2xl font-bold text-black dark:text-white">
-        Hello, {fullName || "Guest"}{" "}
-        {!isLoading && (<span className="inline-block animate-wave-once">👋</span>)}
+        {isLoading ? (
+          <Skeleton className="h-8 w-[200px] rounded" />
+        ) : (
+          <>
+            Hello, {fullName || "Guest"}{" "}
+            <span className="inline-block animate-wave-once">👋</span>
+          </>
+        )}
       </h2>
 
 
